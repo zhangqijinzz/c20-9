@@ -5,6 +5,7 @@ import { DevicePalette } from '../features/materials/components/DevicePalette'
 import { InspectorPanel } from '../features/inspection/components/InspectorPanel'
 import { PreviewOverlay } from '../features/inspection/components/PreviewOverlay'
 import { PlanSidebar } from '../features/workbench/components/PlanSidebar'
+import { RECOVERY_BACKUP_KEY } from '../features/workbench/storageService'
 import { useWorkspaceViewModel } from '../features/workbench/workbenchViewModel'
 
 export function App() {
@@ -12,6 +13,19 @@ export function App() {
   const { document, activePlan, selectedItem, analysis, issueIds, issueCount } = viewModel
 
   if (!document || !activePlan) {
+    if (viewModel.recovery) {
+      return (
+        <main className="loading-screen">
+          <section className="recovery-card">
+            <span className="recovery-icon"><TriangleAlert size={22} /></span>
+            <h1>本地记录无法自动恢复</h1>
+            <p>{viewModel.recovery.reason}</p>
+            <p className="recovery-detail">原始记录已完整转存到浏览器本地备份（{RECOVERY_BACKUP_KEY}），没有被覆盖或删除。你可以使用空白工作台重新开始；如需找回原记录，请联系支持并提供该备份键名。</p>
+            <button className="recovery-action" onClick={viewModel.startFresh} type="button">使用空白工作台重新开始</button>
+          </section>
+        </main>
+      )
+    }
     return <main className="loading-screen"><span className="loading-orb" /><p>正在打开 FocusDesk…</p></main>
   }
 

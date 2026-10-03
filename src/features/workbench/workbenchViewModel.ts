@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  createBlankDocument,
   createId,
   createInitialDocument,
   createPlan,
@@ -16,10 +17,15 @@ import { createMaterialDraft } from '../materials/materialsViewModel'
 import { inspectPlan } from '../inspection/inspectionViewModel'
 import { LocalWorkspaceRepository, type WorkspaceRepository } from './workspaceRepository'
 
+export interface RecoveryNotice {
+  reason: string
+}
+
 export interface WorkspaceViewModel {
   status: WorkspaceStatus
   document: WorkspaceDocument | null
   activePlan: WorkspacePlan | null
+  recovery: RecoveryNotice | null
   selectedItem: DeskItem | null
   analysis: LayoutAnalysis
   issueIds: string[]
@@ -37,6 +43,7 @@ export interface WorkspaceViewModel {
   duplicatePlan: () => void
   selectPlan: (id: string) => void
   deleteCurrentPlan: () => void
+  startFresh: () => void
   openPreview: () => void
   closePreview: () => void
 }
@@ -50,20 +57,42 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [feedback, setFeedback] = useState('正在准备你的工作台…')
+  const [recovery, setRecovery] = useState<RecoveryNotice | null>(null)
 
   useEffect(() => {
     let active = true
-    void repositoryRef.current.load().then((loaded) => {
+    void repositoryRef.current.load().then((result) => {
       if (!active) return
-      const nextDocument = loaded ?? createInitialDocument()
-      setDocument(nextDocument)
-      setStatus('ready')
-      setFeedback(loaded ? '已恢复上次编辑状态' : '已创建示例工作台，可以直接拖动设备')
+      switch (result.kind) {
+        case 'empty':
+          setDocument(createInitialDocument())
+          setStatus('ready')
+          setFeedback('已创建示例工作台，可以直接拖动设备')
+          break
+        case 'ok':
+          setDocument(result.document)
+          setStatus('ready')
+          setFeedback('已恢复上次编辑状态')
+          break
+        case 'repaired':
+          setDocument(result.document)
+          setStatus('ready')
+          setFeedback(`检测到本地记录异常，已自动修复：${result.repairs.join('；')}`)
+          break
+        case 'unrecoverable':
+          // 不套用示例工作台，避免随后的自动保存覆盖掉仍留在本地的原始记录
+          setDocument(null)
+          setStatus('error')
+          setRecovery({ reason: result.reason })
+          setFeedback('本地记录无法自动恢复')
+          break
+      }
     }).catch(() => {
       if (!active) return
-      setDocument(createInitialDocument())
+      setDocument(null)
       setStatus('error')
-      setFeedback('本地数据读取失败，当前使用临时工作台')
+      setRecovery({ reason: '本地数据读取失败，无法确认记录是否完整。' })
+      setFeedback('本地数据读取失败')
     })
     return () => { active = false }
   }, [])
@@ -174,10 +203,16 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
   const openPreview = useCallback(() => setIsPreviewOpen(true), [])
   const closePreview = useCallback(() => setIsPreviewOpen(false), [])
 
+  const startFresh = useCallback(() => {
+    setRecovery(null)
+    void persist(createBlankDocument(), '已使用空白工作台重新开始，原始记录仍保留在本地备份中')
+  }, [persist])
+
   return {
     status,
     document,
     activePlan,
+    recovery,
     selectedItem,
     analysis,
     issueIds,
@@ -195,6 +230,7 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
     duplicatePlan,
     selectPlan,
     deleteCurrentPlan,
+    startFresh,
     openPreview,
     closePreview,
   }

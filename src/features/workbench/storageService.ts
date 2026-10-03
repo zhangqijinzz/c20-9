@@ -1,12 +1,12 @@
-import type { WorkspaceDocument } from '../../shared/models'
-
 export const STORAGE_KEY = 'focusdesk.document.v1'
+export const RECOVERY_BACKUP_KEY = 'focusdesk.document.v1.recovery-backup'
 const DATABASE_NAME = 'focusdesk-db'
 const STORE_NAME = 'workspace'
 
 export interface StorageService {
   read(): Promise<string | null>
   write(value: string): Promise<void>
+  archive?(value: string): Promise<void>
 }
 
 export class BrowserStorageService implements StorageService {
@@ -24,10 +24,20 @@ export class BrowserStorageService implements StorageService {
   async write(value: string): Promise<void> {
     try {
       const database = await openDatabase()
-      await writeToDatabase(database, value)
+      await writeToDatabase(database, STORAGE_KEY, value)
       database.close()
     } catch {
       window.localStorage.setItem(STORAGE_KEY, value)
+    }
+  }
+
+  async archive(value: string): Promise<void> {
+    try {
+      const database = await openDatabase()
+      await writeToDatabase(database, RECOVERY_BACKUP_KEY, value)
+      database.close()
+    } catch {
+      window.localStorage.setItem(RECOVERY_BACKUP_KEY, value)
     }
   }
 }
@@ -49,16 +59,10 @@ function readFromDatabase(database: IDBDatabase): Promise<unknown> {
   })
 }
 
-function writeToDatabase(database: IDBDatabase, value: string): Promise<void> {
+function writeToDatabase(database: IDBDatabase, key: string, value: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = database.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(value, STORAGE_KEY)
+    const request = database.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(value, key)
     request.onsuccess = () => resolve()
     request.onerror = () => reject(request.error ?? new Error('IndexedDB write failed'))
   })
-}
-
-export function isWorkspaceDocument(value: unknown): value is WorkspaceDocument {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<WorkspaceDocument>
-  return candidate.version === 1 && Array.isArray(candidate.plans) && typeof candidate.activePlanId === 'string'
 }

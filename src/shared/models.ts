@@ -110,3 +110,8 @@ export function createInitialDocument(): WorkspaceDocument {
   const plan = createPlan('我的工作台', true)
   return { version: 1, plans: [plan], activePlanId: plan.id }
 }
+
+export function createBlankDocument(): WorkspaceDocument {
+  const plan = createPlan('我的工作台', false)
+  return { version: 1, plans: [plan], activePlanId: plan.id }
+}
