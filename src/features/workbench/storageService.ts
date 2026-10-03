@@ -1,12 +1,15 @@
 import type { WorkspaceDocument } from '../../shared/models'
 
 export const STORAGE_KEY = 'focusdesk.document.v1'
+export const BACKUP_STORAGE_KEY = 'focusdesk.document.v1.backup'
 const DATABASE_NAME = 'focusdesk-db'
 const STORE_NAME = 'workspace'
 
 export interface StorageService {
   read(): Promise<string | null>
   write(value: string): Promise<void>
+  /** 可选：在覆盖损坏记录前，把原始内容另存一份，便于排查和人工恢复 */
+  writeBackup?(value: string): Promise<void>
 }
 
 export class BrowserStorageService implements StorageService {
@@ -29,6 +32,10 @@ export class BrowserStorageService implements StorageService {
     } catch {
       window.localStorage.setItem(STORAGE_KEY, value)
     }
+  }
+
+  async writeBackup(value: string): Promise<void> {
+    window.localStorage.setItem(BACKUP_STORAGE_KEY, value)
   }
 }
 

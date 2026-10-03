@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  createBlankDocument,
   createId,
-  createInitialDocument,
   createPlan,
   type DeskItem,
   type DeviceType,
@@ -25,6 +25,7 @@ export interface WorkspaceViewModel {
   issueIds: string[]
   issueCount: number
   feedback: string
+  recoveryNotices: string[]
   isPreviewOpen: boolean
   selectItem: (id: string | null) => void
   addItem: (type: DeviceType) => void
@@ -37,6 +38,7 @@ export interface WorkspaceViewModel {
   duplicatePlan: () => void
   selectPlan: (id: string) => void
   deleteCurrentPlan: () => void
+  dismissRecoveryNotices: () => void
   openPreview: () => void
   closePreview: () => void
 }
@@ -50,18 +52,30 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [feedback, setFeedback] = useState('正在准备你的工作台…')
+  const [recoveryNotices, setRecoveryNotices] = useState<string[]>([])
 
   useEffect(() => {
     let active = true
-    void repositoryRef.current.load().then((loaded) => {
+    void repositoryRef.current.loadWithRecovery().then((recovery) => {
       if (!active) return
-      const nextDocument = loaded ?? createInitialDocument()
-      setDocument(nextDocument)
+      setDocument(recovery.document)
+      setRecoveryNotices(recovery.notices)
+      if (recovery.outcome === 'error') {
+        setStatus('error')
+        setFeedback(recovery.notices[0] ?? '本地数据读取失败，当前使用临时工作台')
+        return
+      }
       setStatus('ready')
-      setFeedback(loaded ? '已恢复上次编辑状态' : '已创建示例工作台，可以直接拖动设备')
+      setFeedback(
+        recovery.notices.length > 0
+          ? recovery.notices.join('；')
+          : recovery.outcome === 'empty'
+            ? '已创建示例工作台，可以直接拖动设备'
+            : '已恢复上次编辑状态',
+      )
     }).catch(() => {
       if (!active) return
-      setDocument(createInitialDocument())
+      setDocument(createBlankDocument())
       setStatus('error')
       setFeedback('本地数据读取失败，当前使用临时工作台')
     })
@@ -173,6 +187,7 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
 
   const openPreview = useCallback(() => setIsPreviewOpen(true), [])
   const closePreview = useCallback(() => setIsPreviewOpen(false), [])
+  const dismissRecoveryNotices = useCallback(() => setRecoveryNotices([]), [])
 
   return {
     status,
@@ -183,6 +198,7 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
     issueIds,
     issueCount,
     feedback,
+    recoveryNotices,
     isPreviewOpen,
     selectItem,
     addItem,
@@ -195,6 +211,7 @@ export function useWorkspaceViewModel(repository?: WorkspaceRepository): Workspa
     duplicatePlan,
     selectPlan,
     deleteCurrentPlan,
+    dismissRecoveryNotices,
     openPreview,
     closePreview,
   }

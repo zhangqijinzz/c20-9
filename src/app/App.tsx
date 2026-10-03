@@ -19,6 +19,16 @@ export function App() {
     <main className="app-shell">
       <PlanSidebar plans={document.plans} activePlanId={document.activePlanId} onSelect={viewModel.selectPlan} onCreate={viewModel.createNewPlan} onDuplicate={viewModel.duplicatePlan} onDelete={viewModel.deleteCurrentPlan} />
       <section className="app-main">
+        {viewModel.recoveryNotices.length > 0 && (
+          <div className="recovery-banner" role="alert">
+            <TriangleAlert size={16} />
+            <div className="recovery-banner-copy">
+              <strong>启动时检测到本地记录异常，已自动处理</strong>
+              {viewModel.recoveryNotices.map((notice) => <span key={notice}>{notice}</span>)}
+            </div>
+            <button type="button" onClick={viewModel.dismissRecoveryNotices}>知道了</button>
+          </div>
+        )}
         <header className="topbar">
           <div className="breadcrumb"><span>工作台</span><span>/</span><strong>{activePlan.name}</strong></div>
           <div className="topbar-actions"><span className={`save-state ${viewModel.status === 'error' ? 'save-error' : ''}`}><Cloud size={15} /> {viewModel.status === 'saving' ? '保存中…' : viewModel.status === 'error' ? '保存异常' : '已保存到本地'}</span><button className="preview-button" onClick={viewModel.openPreview} type="button"><PanelTop size={16} /> 预览方案</button><span className="avatar">FD</span></div>
